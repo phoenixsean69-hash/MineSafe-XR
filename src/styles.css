@@ -1212,3 +1212,133 @@ button.debrief-ready:hover {
 }
 
 /* MINESAFE_DOCK_INTERACTIONS_END */
+/* MINESAFE_RADIOS_SWITCHES_START */
+
+/* Actual radio controls for instructor assessment. */
+.action-list {
+  gap: 0;
+}
+
+.radio-action {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #bdbdbd;
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio-action input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
+  border: 1.5px solid #777;
+  border-radius: 50%;
+  background: #303030;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.radio-action:hover input {
+  border-color: #a0a0a0;
+}
+
+.radio-action input:checked {
+  border-color: #79a8cf;
+  background: #5c91bd;
+  box-shadow: inset 0 0 0 4px #303030;
+}
+
+.radio-action input:focus-visible {
+  outline: 1px solid #8db9dc;
+  outline-offset: 2px;
+}
+
+.radio-action.is-checked {
+  color: #e0e0e0;
+}
+
+/* Compact Blender-style system switches. */
+.switch-list {
+  display: grid;
+  gap: 0;
+}
+
+.system-switch {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b5b5b5;
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch-control {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex: 0 0 32px;
+}
+
+.switch-control input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch-control i {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #555;
+  border-radius: 10px;
+  background: #222;
+  transition: background .14s ease, border-color .14s ease;
+}
+
+.switch-control i::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #aaa;
+  box-shadow: 0 1px 2px rgba(0,0,0,.35);
+  transition: transform .14s ease, background .14s ease;
+}
+
+.switch-control input:checked + i {
+  border-color: #5b88ad;
+  background: #3f6f96;
+}
+
+.switch-control input:checked + i::after {
+  transform: translateX(14px);
+  background: #f1f1f1;
+}
+
+.switch-control input:focus-visible + i {
+  outline: 1px solid #8db9dc;
+  outline-offset: 2px;
+}
+
+.system-switch:hover {
+  color: #e1e1e1;
+}
+
+/* MINESAFE_RADIOS_SWITCHES_END */

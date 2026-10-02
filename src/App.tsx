@@ -66,6 +66,48 @@ function Icon({ name, filled = false }: { name: string; filled?: boolean }) {
   )
 }
 
+function RadioAction({
+  label,
+  checked,
+  onSelect,
+}: {
+  label: string
+  checked: boolean
+  onSelect: () => void
+}) {
+  return (
+    <label className={`radio-action ${checked ? 'is-checked' : ''}`}>
+      <input type="radio" checked={checked} onChange={onSelect} />
+      <span>{label}</span>
+    </label>
+  )
+}
+
+function SystemSwitch({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="system-switch">
+      <span>{label}</span>
+      <span className="switch-control">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={checked}
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <i />
+      </span>
+    </label>
+  )
+}
 function App() {
   const [phase, setPhase] = useState<DrillPhase>('idle')
   const [autoRun, setAutoRun] = useState(false)
@@ -86,6 +128,13 @@ function App() {
   })
   const [notice, setNotice] = useState<string | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [manualAssessment, setManualAssessment] = useState({
+    hazard: false,
+    route: false,
+    alternate: false,
+  })
+  const [autoAdvance, setAutoAdvance] = useState(true)
+  const [showWarnings, setShowWarnings] = useState(true)
 
   const phaseIndex = PHASES.indexOf(phase)
   const elapsed = PHASE_TIME[phase]
@@ -95,7 +144,7 @@ function App() {
   )
 
   useEffect(() => {
-    if (!autoRun || phase === 'complete') return
+    if (!autoRun || !autoAdvance || phase === 'complete') return
 
     const timer = window.setTimeout(() => {
       const nextIndex = Math.min(PHASES.indexOf(phase) + 1, PHASES.length - 1)
@@ -103,7 +152,7 @@ function App() {
     }, 3000)
 
     return () => window.clearTimeout(timer)
-  }, [autoRun, phase])
+  }, [autoRun, autoAdvance, phase])
 
   useEffect(() => {
     if (phase === 'complete') {
@@ -129,6 +178,11 @@ function App() {
     setAutoRun(false)
     setWorkspace('Drill')
     setActiveProperty('safety')
+    setManualAssessment({
+      hazard: false,
+      route: false,
+      alternate: false,
+    })
     setNotice('Exercise reset')
   }
 
@@ -137,13 +191,20 @@ function App() {
       setPhase('alarm')
       setWorkspace('Drill')
       setActiveProperty('safety')
-      setAutoRun(true)
+      setAutoRun(autoAdvance)
       return
     }
 
     if (phase === 'idle') {
       setPhase('alarm')
-      setAutoRun(true)
+      setAutoRun(autoAdvance)
+      if (!autoAdvance) setNotice('Manual event mode - use Next inject')
+      return
+    }
+
+    if (!autoAdvance) {
+      setAutoRun(false)
+      setNotice('Auto-advance is off - use Next inject')
       return
     }
 
@@ -418,9 +479,21 @@ function App() {
             </button>
             {openSections.assessment !== false && (
               <div className="property-body action-list">
-                <div><Icon name={phaseIndex >= 1 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 1} /><span>Hazard recognised</span></div>
-                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Unsafe route rejected</span></div>
-                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Alternate route selected</span></div>
+                <RadioAction
+                  label="Hazard recognised"
+                  checked={phaseIndex >= 1 || manualAssessment.hazard}
+                  onSelect={() => setManualAssessment((value) => ({ ...value, hazard: true }))}
+                />
+                <RadioAction
+                  label="Unsafe route rejected"
+                  checked={phaseIndex >= 3 || manualAssessment.route}
+                  onSelect={() => setManualAssessment((value) => ({ ...value, route: true }))}
+                />
+                <RadioAction
+                  label="Alternate route selected"
+                  checked={phaseIndex >= 3 || manualAssessment.alternate}
+                  onSelect={() => setManualAssessment((value) => ({ ...value, alternate: true }))}
+                />
               </div>
             )}
           </section>
@@ -504,6 +577,45 @@ function App() {
           {openSections.cue && (
             <div className="property-body">
               <p>{instructorCue}</p>
+            </div>
+          )}
+        </section>
+
+        <section className="property-section">
+          <button className="property-heading" onClick={() => toggleSection('systemAids')}>
+            <Icon name={openSections.systemAids !== false ? 'expand_more' : 'chevron_right'} />
+            System aids
+          </button>
+          {openSections.systemAids !== false && (
+            <div className="property-body switch-list">
+              <SystemSwitch
+                label="Auto-advance events"
+                checked={autoAdvance}
+                onChange={(checked) => {
+                  setAutoAdvance(checked)
+                  if (!checked) setAutoRun(false)
+                }}
+              />
+              <SystemSwitch
+                label="Route guidance"
+                checked={showRoutes}
+                onChange={setShowRoutes}
+              />
+              <SystemSwitch
+                label="Scene labels"
+                checked={showLabels}
+                onChange={setShowLabels}
+              />
+              <SystemSwitch
+                label="Hazard banner"
+                checked={showWarnings}
+                onChange={setShowWarnings}
+              />
+              <SystemSwitch
+                label="Viewport grid"
+                checked={showGrid}
+                onChange={setShowGrid}
+              />
             </div>
           )}
         </section>
@@ -722,7 +834,7 @@ function App() {
               </div>
             )}
 
-            {phase !== 'idle' && phase !== 'complete' && (
+            {showWarnings && phase !== 'idle' && phase !== 'complete' && (
               <div className="simulation-banner">
                 <Icon name="warning" filled />
                 <div>
