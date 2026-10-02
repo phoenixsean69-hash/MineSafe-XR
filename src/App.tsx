@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import MineScene, { type DrillPhase } from './components/MineScene'
+import MineScene, { type DrillPhase, type ViewStyle } from './components/MineScene'
 
 type EventItem = {
   time: string
@@ -8,7 +8,18 @@ type EventItem = {
   tone: 'neutral' | 'danger' | 'safe'
 }
 
+type PropertyTab = 'exercise' | 'safety' | 'environment' | 'routes' | 'assessment'
+type Workspace = 'Drill' | 'Setup' | 'Debrief'
+
 const PHASES: DrillPhase[] = ['idle', 'alarm', 'blocked', 'reroute', 'complete']
+
+const PHASE_TIME: Record<DrillPhase, number> = {
+  idle: 0,
+  alarm: 8,
+  blocked: 16,
+  reroute: 24,
+  complete: 36,
+}
 
 const EVENTS: Record<DrillPhase, EventItem> = {
   idle: {
@@ -58,11 +69,26 @@ function Icon({ name, filled = false }: { name: string; filled?: boolean }) {
 function App() {
   const [phase, setPhase] = useState<DrillPhase>('idle')
   const [autoRun, setAutoRun] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
   const [activeTool, setActiveTool] = useState('select')
-  const [workspace, setWorkspace] = useState<'Drill' | 'Setup' | 'Debrief'>('Drill')
+  const [workspace, setWorkspace] = useState<Workspace>('Drill')
+  const [activeProperty, setActiveProperty] = useState<PropertyTab>('safety')
+  const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [selectedEntity, setSelectedEntity] = useState('worker')
+  const [viewStyle, setViewStyle] = useState<ViewStyle>('solid')
+  const [showGrid, setShowGrid] = useState(true)
+  const [showRoutes, setShowRoutes] = useState(true)
+  const [showLabels, setShowLabels] = useState(true)
+  const [cameraKey, setCameraKey] = useState(0)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    conditions: true,
+    actions: true,
+    cue: true,
+  })
+  const [notice, setNotice] = useState<string | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const phaseIndex = PHASES.indexOf(phase)
+  const elapsed = PHASE_TIME[phase]
   const visibleEvents = useMemo(
     () => PHASES.slice(0, phaseIndex + 1).map((item) => EVENTS[item]),
     [phaseIndex],
@@ -72,8 +98,8 @@ function App() {
     if (!autoRun || phase === 'complete') return
 
     const timer = window.setTimeout(() => {
-      setElapsed((value) => Math.min(value + 8, 36))
-      setPhase(PHASES[Math.min(PHASES.indexOf(phase) + 1, PHASES.length - 1)])
+      const nextIndex = Math.min(PHASES.indexOf(phase) + 1, PHASES.length - 1)
+      setPhase(PHASES[nextIndex])
     }, 3000)
 
     return () => window.clearTimeout(timer)
@@ -83,32 +109,98 @@ function App() {
     if (phase === 'complete') {
       setAutoRun(false)
       setWorkspace('Debrief')
+      setActiveProperty('assessment')
     }
   }, [phase])
 
-  const reset = () => {
-    setPhase('idle')
-    setElapsed(0)
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 1800)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  const goToPhase = (target: DrillPhase) => {
     setAutoRun(false)
-    setWorkspace('Drill')
+    setPhase(target)
   }
 
-  const start = () => {
-    if (phase === 'complete') {
-      setPhase('idle')
-      setElapsed(0)
-    }
+  const reset = () => {
+    setPhase('idle')
+    setAutoRun(false)
     setWorkspace('Drill')
-    setPhase('alarm')
-    setElapsed(8)
-    setAutoRun(true)
+    setActiveProperty('safety')
+    setNotice('Exercise reset')
+  }
+
+  const toggleRun = () => {
+    if (phase === 'complete') {
+      setPhase('alarm')
+      setWorkspace('Drill')
+      setActiveProperty('safety')
+      setAutoRun(true)
+      return
+    }
+
+    if (phase === 'idle') {
+      setPhase('alarm')
+      setAutoRun(true)
+      return
+    }
+
+    setAutoRun((value) => !value)
   }
 
   const advance = () => {
     if (phase === 'complete') return
-    const next = PHASES[Math.min(phaseIndex + 1, PHASES.length - 1)]
-    setPhase(next)
-    setElapsed(Math.min(elapsed + 8, 36))
+    setAutoRun(false)
+    setPhase(PHASES[Math.min(phaseIndex + 1, PHASES.length - 1)])
+  }
+
+  const previous = () => {
+    setAutoRun(false)
+    setPhase(PHASES[Math.max(phaseIndex - 1, 0)])
+  }
+
+  const jumpEnd = () => {
+    setAutoRun(false)
+    setPhase('complete')
+  }
+
+  const selectWorkspace = (name: Workspace) => {
+    setWorkspace(name)
+    setActiveMenu(null)
+
+    if (name === 'Setup') setActiveProperty('exercise')
+    if (name === 'Drill') setActiveProperty('safety')
+    if (name === 'Debrief') setActiveProperty('assessment')
+  }
+
+  const toggleSection = (name: string) => {
+    setOpenSections((value) => ({ ...value, [name]: !value[name] }))
+  }
+
+  const exportSession = () => {
+    const data = {
+      product: 'MineSafe XR',
+      scenario: 'MXR-01',
+      phase,
+      elapsed,
+      trainee: 'Worker 017',
+      personnel: 6,
+      routeA: phaseIndex >= 2 ? 'Blocked' : 'Open',
+      alternateRefuge: '164 m',
+      events: visibleEvents,
+      prototype: true,
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'minesafe-xr-session.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    setNotice('Session exported')
   }
 
   const status = phase === 'idle' ? 'Ready' : phase === 'complete' ? 'Debrief ready' : 'Drill active'
@@ -125,6 +217,308 @@ function App() {
             ? 'Allow the trainee to continue to the refuge point.'
             : 'Review the route decision and response timing with the trainee.'
 
+  const menuAction = (action: string) => {
+    setActiveMenu(null)
+
+    if (action === 'reset') reset()
+    if (action === 'export') exportSession()
+    if (action === 'alarm') goToPhase('alarm')
+    if (action === 'blocked') goToPhase('blocked')
+    if (action === 'reroute') goToPhase('reroute')
+    if (action === 'complete') jumpEnd()
+    if (action === 'grid') setShowGrid((value) => !value)
+    if (action === 'labels') setShowLabels((value) => !value)
+    if (action === 'routes') setShowRoutes((value) => !value)
+    if (action === 'play') toggleRun()
+    if (action === 'previous') previous()
+    if (action === 'next') advance()
+    if (action === 'shortcuts') setHelpOpen(true)
+    if (action === 'about') {
+      setHelpOpen(true)
+      setNotice('MineSafe XR desktop prototype')
+    }
+  }
+
+  const renderMenu = () => {
+    if (!activeMenu) return null
+
+    const items: Record<string, Array<[string, string]>> = {
+      File: [
+        ['Reset exercise', 'reset'],
+        ['Export session', 'export'],
+      ],
+      Edit: [
+        ['Select trainee', 'select-worker'],
+        ['Reset exercise', 'reset'],
+      ],
+      Scenario: [
+        ['Trigger fire inject', 'alarm'],
+        ['Withdraw Route A', 'blocked'],
+        ['Select alternate route', 'reroute'],
+        ['End exercise', 'complete'],
+      ],
+      View: [
+        [`${showGrid ? 'Hide' : 'Show'} viewport grid`, 'grid'],
+        [`${showLabels ? 'Hide' : 'Show'} labels`, 'labels'],
+        [`${showRoutes ? 'Hide' : 'Show'} route overlays`, 'routes'],
+      ],
+      Playback: [
+        [autoRun ? 'Pause' : 'Play', 'play'],
+        ['Previous event', 'previous'],
+        ['Next event', 'next'],
+        ['Jump to end', 'complete'],
+      ],
+      Help: [
+        ['Keyboard shortcuts', 'shortcuts'],
+        ['About MineSafe XR', 'about'],
+      ],
+    }
+
+    const current = items[activeMenu] ?? []
+
+    return (
+      <div className="app-dropdown" onMouseLeave={() => setActiveMenu(null)}>
+        {current.map(([label, action]) => (
+          <button
+            key={`${activeMenu}-${label}`}
+            onClick={() => {
+              if (action === 'select-worker') {
+                setSelectedEntity('worker')
+                setNotice('Worker 017 selected')
+                setActiveMenu(null)
+              } else {
+                menuAction(action)
+              }
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  const renderPropertyContent = () => {
+    if (activeProperty === 'exercise') {
+      return (
+        <>
+          <div className="risk-readout">
+            <div>
+              <span>Exercise state</span>
+              <strong>{status}</strong>
+            </div>
+            <Icon name="sports_martial_arts" filled />
+          </div>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('exercise')}>
+              <Icon name={openSections.exercise !== false ? 'expand_more' : 'chevron_right'} />
+              Exercise setup
+            </button>
+            {openSections.exercise !== false && (
+              <div className="property-body">
+                <div className="property-line"><span>Scenario</span><strong>MXR-01</strong></div>
+                <div className="property-line"><span>Trainee</span><strong>Worker 017</strong></div>
+                <div className="property-line"><span>Personnel</span><strong>6</strong></div>
+                <div className="property-line"><span>Location</span><strong>North Decline</strong></div>
+                <div className="property-line"><span>Level</span><strong>L4</strong></div>
+              </div>
+            )}
+          </section>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('setupBrief')}>
+              <Icon name={openSections.setupBrief !== false ? 'expand_more' : 'chevron_right'} />
+              Training objective
+            </button>
+            {openSections.setupBrief !== false && (
+              <div className="property-body cue-section">
+                <p>Recognise the simulated fire, reject Route A when unsafe, and reach Refuge Chamber 2.</p>
+              </div>
+            )}
+          </section>
+        </>
+      )
+    }
+
+    if (activeProperty === 'environment') {
+      return (
+        <>
+          <div className="risk-readout">
+            <div>
+              <span>Environment source</span>
+              <strong>Simulated</strong>
+            </div>
+            <Icon name="air" filled />
+          </div>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('environment')}>
+              <Icon name={openSections.environment !== false ? 'expand_more' : 'chevron_right'} />
+              Mine conditions
+            </button>
+            {openSections.environment !== false && (
+              <div className="property-body">
+                <div className="condition-row">
+                  <span>Airflow</span>
+                  <div className="condition-value"><strong>{phase === 'idle' ? '2.8' : '1.7'}</strong><small>m/s</small></div>
+                </div>
+                <div className="meter"><i style={{ width: phase === 'idle' ? '76%' : '46%' }} /></div>
+                <div className="condition-row">
+                  <span>Visibility</span>
+                  <div className="condition-value"><strong>{phase === 'idle' ? '92' : phase === 'alarm' ? '68' : '41'}</strong><small>%</small></div>
+                </div>
+                <div className="meter"><i style={{ width: phase === 'idle' ? '92%' : phase === 'alarm' ? '68%' : '41%' }} /></div>
+                <div className="property-line"><span>Data type</span><strong>Training model</strong></div>
+              </div>
+            )}
+          </section>
+        </>
+      )
+    }
+
+    if (activeProperty === 'routes') {
+      return (
+        <>
+          <div className={`risk-readout risk-${phaseIndex >= 2 ? 'critical' : 'low'}`}>
+            <div>
+              <span>Primary escapeway</span>
+              <strong>{phaseIndex >= 2 ? 'Blocked' : 'Open'}</strong>
+            </div>
+            <Icon name={phaseIndex >= 2 ? 'block' : 'route'} filled />
+          </div>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('routes')}>
+              <Icon name={openSections.routes !== false ? 'expand_more' : 'chevron_right'} />
+              Route status
+            </button>
+            {openSections.routes !== false && (
+              <div className="property-body">
+                <div className="property-line"><span>Route A</span><strong className={phaseIndex >= 2 ? 'value-danger' : 'value-safe'}>{phaseIndex >= 2 ? 'BLOCKED' : 'OPEN'}</strong></div>
+                <div className="property-line"><span>Refuge Chamber 2</span><strong>164 m</strong></div>
+                <div className="property-line"><span>Route overlay</span><strong>{showRoutes ? 'Visible' : 'Hidden'}</strong></div>
+              </div>
+            )}
+          </section>
+        </>
+      )
+    }
+
+    if (activeProperty === 'assessment') {
+      return (
+        <>
+          <div className="risk-readout">
+            <div>
+              <span>Exercise progress</span>
+              <strong>{phase === 'complete' ? 'Complete' : `${phaseIndex}/4 events`}</strong>
+            </div>
+            <Icon name="fact_check" filled />
+          </div>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('assessment')}>
+              <Icon name={openSections.assessment !== false ? 'expand_more' : 'chevron_right'} />
+              Trainee assessment
+            </button>
+            {openSections.assessment !== false && (
+              <div className="property-body action-list">
+                <div><Icon name={phaseIndex >= 1 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 1} /><span>Hazard recognised</span></div>
+                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Unsafe route rejected</span></div>
+                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Alternate route selected</span></div>
+              </div>
+            )}
+          </section>
+          <section className="property-section">
+            <button className="property-heading" onClick={() => toggleSection('debrief')}>
+              <Icon name={openSections.debrief !== false ? 'expand_more' : 'chevron_right'} />
+              Debrief summary
+            </button>
+            {openSections.debrief !== false && (
+              <div className="property-body">
+                <div className="property-line"><span>Response time</span><strong>00:{String(elapsed).padStart(2, '0')}</strong></div>
+                <div className="property-line"><span>Recorded events</span><strong>{visibleEvents.length}</strong></div>
+                <div className="property-line"><span>Outcome</span><strong>{phase === 'complete' ? 'Refuge reached' : 'In progress'}</strong></div>
+              </div>
+            )}
+          </section>
+        </>
+      )
+    }
+
+    return (
+      <>
+        <div className={`risk-readout risk-${risk.toLowerCase()}`}>
+          <div>
+            <span>Current training risk</span>
+            <strong>{risk}</strong>
+          </div>
+          <Icon name={risk === 'Low' || risk === 'Controlled' ? 'verified_user' : 'warning'} filled />
+        </div>
+
+        <section className="property-section">
+          <button className="property-heading" onClick={() => toggleSection('conditions')}>
+            <Icon name={openSections.conditions ? 'expand_more' : 'chevron_right'} />
+            Mine conditions
+          </button>
+          {openSections.conditions && (
+            <div className="property-body">
+              <div className="condition-row">
+                <span>Airflow</span>
+                <div className="condition-value"><strong>{phase === 'idle' ? '2.8' : '1.7'}</strong><small>m/s</small></div>
+              </div>
+              <div className="meter"><i style={{ width: phase === 'idle' ? '76%' : '46%' }} /></div>
+
+              <div className="condition-row">
+                <span>Visibility</span>
+                <div className="condition-value"><strong>{phase === 'idle' ? '92' : phase === 'alarm' ? '68' : '41'}</strong><small>%</small></div>
+              </div>
+              <div className="meter"><i style={{ width: phase === 'idle' ? '92%' : phase === 'alarm' ? '68%' : '41%' }} /></div>
+
+              <div className="property-line">
+                <span>Primary escapeway</span>
+                <strong className={phaseIndex >= 2 ? 'value-danger' : 'value-safe'}>{phaseIndex >= 2 ? 'BLOCKED' : 'OPEN'}</strong>
+              </div>
+              <div className="property-line">
+                <span>Alternate refuge</span>
+                <strong>164 m</strong>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="property-section">
+          <button className="property-heading" onClick={() => toggleSection('actions')}>
+            <Icon name={openSections.actions ? 'expand_more' : 'chevron_right'} />
+            Trainee actions
+          </button>
+          {openSections.actions && (
+            <div className="property-body action-list">
+              <div><Icon name={phaseIndex >= 1 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 1} /><span>Hazard recognised</span></div>
+              <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Unsafe route rejected</span></div>
+              <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Alternate route selected</span></div>
+            </div>
+          )}
+        </section>
+
+        <section className="property-section cue-section">
+          <button className="property-heading" onClick={() => toggleSection('cue')}>
+            <Icon name={openSections.cue ? 'expand_more' : 'chevron_right'} />
+            Instructor cue
+          </button>
+          {openSections.cue && (
+            <div className="property-body">
+              <p>{instructorCue}</p>
+            </div>
+          )}
+        </section>
+      </>
+    )
+  }
+
+  const propertyTabs: Array<[PropertyTab, string, string]> = [
+    ['exercise', 'tune', 'Exercise'],
+    ['safety', 'health_and_safety', 'Safety'],
+    ['environment', 'air', 'Environment'],
+    ['routes', 'route', 'Routes'],
+    ['assessment', 'fact_check', 'Assessment'],
+  ]
+
   return (
     <main className="app-shell">
       <header className="app-menu-bar">
@@ -134,12 +528,16 @@ function App() {
         </div>
 
         <nav className="main-menu" aria-label="Application menu">
-          <button>File</button>
-          <button>Edit</button>
-          <button>Scenario</button>
-          <button>View</button>
-          <button>Playback</button>
-          <button>Help</button>
+          {['File', 'Edit', 'Scenario', 'View', 'Playback', 'Help'].map((name) => (
+            <button
+              key={name}
+              className={activeMenu === name ? 'active' : ''}
+              onClick={() => setActiveMenu(activeMenu === name ? null : name)}
+            >
+              {name}
+            </button>
+          ))}
+          {renderMenu()}
         </nav>
 
         <div className="top-status">
@@ -152,11 +550,11 @@ function App() {
 
       <div className="workspace-tabs-bar">
         <div className="workspace-tabs">
-          {(['Drill', 'Setup', 'Debrief'] as const).map((name) => (
+          {(['Drill', 'Setup', 'Debrief'] as Workspace[]).map((name) => (
             <button
               key={name}
               className={workspace === name ? 'active' : ''}
-              onClick={() => setWorkspace(name)}
+              onClick={() => selectWorkspace(name)}
             >
               {name}
             </button>
@@ -179,21 +577,33 @@ function App() {
               className={activeTool === id ? 'active' : ''}
               title={label}
               aria-label={label}
-              onClick={() => setActiveTool(id)}
+              onClick={() => {
+                setActiveTool(id)
+                setNotice(`${label} tool active`)
+              }}
             >
               <Icon name={icon} />
             </button>
           ))}
           <span className="tool-separator" />
-          <button title="Frame selected" aria-label="Frame selected"><Icon name="filter_center_focus" /></button>
+          <button
+            title="Frame selected"
+            aria-label="Frame selected"
+            onClick={() => {
+              setCameraKey((value) => value + 1)
+              setNotice('View framed on scene')
+            }}
+          >
+            <Icon name="filter_center_focus" />
+          </button>
         </aside>
 
         <aside className="outliner-panel">
           <div className="editor-header">
             <span>Scenario</span>
             <div className="editor-actions">
-              <button title="Search"><Icon name="search" /></button>
-              <button title="Options"><Icon name="more_vert" /></button>
+              <button title="Frame trainee" onClick={() => setSelectedEntity('worker')}><Icon name="search" /></button>
+              <button title="Scenario options" onClick={() => setActiveMenu(activeMenu === 'Scenario' ? null : 'Scenario')}><Icon name="more_vert" /></button>
             </div>
           </div>
 
@@ -206,12 +616,12 @@ function App() {
           </div>
 
           <div className="tree-list">
-            <div className="tree-row root"><Icon name="expand_more" /><Icon name="folder_open" /> Training scene</div>
-            <div className="tree-row child selected"><Icon name="person" /> Worker 017</div>
-            <div className="tree-row child"><Icon name="local_shipping" /> Loader bay</div>
-            <div className="tree-row child"><Icon name="route" /> Route A</div>
-            <div className="tree-row child"><Icon name="meeting_room" /> Refuge Chamber 2</div>
-            <div className="tree-row child"><Icon name="air" /> Ventilation zone</div>
+            <button className="tree-row root" onClick={() => setSelectedEntity('scene')}><Icon name="expand_more" /><Icon name="folder_open" /> Training scene</button>
+            <button className={`tree-row child ${selectedEntity === 'worker' ? 'selected' : ''}`} onClick={() => setSelectedEntity('worker')}><Icon name="person" /> Worker 017</button>
+            <button className={`tree-row child ${selectedEntity === 'loader' ? 'selected' : ''}`} onClick={() => setSelectedEntity('loader')}><Icon name="local_shipping" /> Loader bay</button>
+            <button className={`tree-row child ${selectedEntity === 'route' ? 'selected' : ''}`} onClick={() => { setSelectedEntity('route'); setActiveProperty('routes') }}><Icon name="route" /> Route A</button>
+            <button className={`tree-row child ${selectedEntity === 'refuge' ? 'selected' : ''}`} onClick={() => { setSelectedEntity('refuge'); setActiveProperty('routes') }}><Icon name="meeting_room" /> Refuge Chamber 2</button>
+            <button className={`tree-row child ${selectedEntity === 'ventilation' ? 'selected' : ''}`} onClick={() => { setSelectedEntity('ventilation'); setActiveProperty('environment') }}><Icon name="air" /> Ventilation zone</button>
           </div>
 
           <div className="panel-section compact-facts">
@@ -232,20 +642,72 @@ function App() {
         <section className="viewport-editor">
           <div className="viewport-header editor-header">
             <div className="viewport-mode">
-              <button className="active"><Icon name="deployed_code" /> Object mode</button>
+              <button
+                className={activeTool === 'select' ? 'active' : ''}
+                onClick={() => {
+                  setActiveTool('select')
+                  setNotice('Object selection mode')
+                }}
+              >
+                <Icon name="deployed_code" /> Object mode
+              </button>
               <span className="divider" />
-              <button title="Viewport overlays"><Icon name="layers" /></button>
-              <button title="Route overlays" className="active-icon"><Icon name="timeline" /></button>
+              <button
+                title={showLabels ? 'Hide labels' : 'Show labels'}
+                className={showLabels ? 'active-icon' : ''}
+                onClick={() => setShowLabels((value) => !value)}
+              >
+                <Icon name="layers" />
+              </button>
+              <button
+                title={showRoutes ? 'Hide route overlays' : 'Show route overlays'}
+                className={showRoutes ? 'active-icon' : ''}
+                onClick={() => setShowRoutes((value) => !value)}
+              >
+                <Icon name="timeline" />
+              </button>
             </div>
+
             <div className="viewport-actions">
-              <button title="Wireframe"><Icon name="grid_4x4" /></button>
-              <button title="Solid" className="active-icon"><Icon name="circle" filled /></button>
-              <button title="Rendered"><Icon name="view_in_ar" /></button>
+              <button
+                title="Toggle viewport grid"
+                className={showGrid ? 'active-icon' : ''}
+                onClick={() => setShowGrid((value) => !value)}
+              >
+                <Icon name="grid_4x4" />
+              </button>
+              <button
+                title="Wireframe"
+                className={viewStyle === 'wireframe' ? 'active-icon' : ''}
+                onClick={() => setViewStyle('wireframe')}
+              >
+                <Icon name="grid_on" />
+              </button>
+              <button
+                title="Solid"
+                className={viewStyle === 'solid' ? 'active-icon' : ''}
+                onClick={() => setViewStyle('solid')}
+              >
+                <Icon name="circle" filled />
+              </button>
+              <button
+                title="Rendered"
+                className={viewStyle === 'rendered' ? 'active-icon' : ''}
+                onClick={() => setViewStyle('rendered')}
+              >
+                <Icon name="view_in_ar" />
+              </button>
             </div>
           </div>
 
-          <div className="viewport-stage">
-            <MineScene phase={phase} />
+          <div className={`viewport-stage ${showGrid ? '' : 'grid-hidden'}`}>
+            <MineScene
+              key={cameraKey}
+              phase={phase}
+              viewStyle={viewStyle}
+              showRoutes={showRoutes}
+              showLabels={showLabels}
+            />
 
             <div className="axis-gizmo" aria-hidden="true">
               <span className="axis-z">Z</span>
@@ -253,10 +715,12 @@ function App() {
               <span className="axis-x">X</span>
             </div>
 
-            <div className="viewport-overlay top-left">
-              <strong>North Decline / L4</strong>
-              <span>Training environment - simulated data</span>
-            </div>
+            {showLabels && (
+              <div className="viewport-overlay top-left">
+                <strong>North Decline / L4</strong>
+                <span>Training environment - simulated data</span>
+              </div>
+            )}
 
             {phase !== 'idle' && phase !== 'complete' && (
               <div className="simulation-banner">
@@ -278,81 +742,38 @@ function App() {
 
         <aside className="properties-editor">
           <div className="properties-tabs" aria-label="Properties tabs">
-            {[
-              ['tune', 'Exercise'],
-              ['health_and_safety', 'Safety'],
-              ['air', 'Environment'],
-              ['route', 'Routes'],
-              ['fact_check', 'Assessment'],
-            ].map(([icon, label], index) => (
-              <button key={label} className={index === 1 ? 'active' : ''} title={label} aria-label={label}>
-                <Icon name={icon} filled={index === 1} />
+            {propertyTabs.map(([id, icon, label]) => (
+              <button
+                key={id}
+                className={activeProperty === id ? 'active' : ''}
+                title={label}
+                aria-label={label}
+                onClick={() => setActiveProperty(id)}
+              >
+                <Icon name={icon} filled={activeProperty === id} />
               </button>
             ))}
           </div>
 
           <div className="properties-content">
             <div className="editor-header properties-titlebar">
-              <span>Safety</span>
-              <button title="Panel options"><Icon name="more_horiz" /></button>
+              <span>{propertyTabs.find(([id]) => id === activeProperty)?.[2]}</span>
+              <button
+                title="Panel options"
+                onClick={() => setNotice(`${propertyTabs.find(([id]) => id === activeProperty)?.[2]} panel active`)}
+              >
+                <Icon name="more_horiz" />
+              </button>
             </div>
 
-            <div className={`risk-readout risk-${risk.toLowerCase()}`}>
-              <div>
-                <span>Current training risk</span>
-                <strong>{risk}</strong>
-              </div>
-              <Icon name={risk === 'Low' || risk === 'Controlled' ? 'verified_user' : 'warning'} filled />
-            </div>
-
-            <section className="property-section">
-              <button className="property-heading"><Icon name="expand_more" /> Mine conditions</button>
-              <div className="property-body">
-                <div className="condition-row">
-                  <span>Airflow</span>
-                  <div className="condition-value"><strong>{phase === 'idle' ? '2.8' : '1.7'}</strong><small>m/s</small></div>
-                </div>
-                <div className="meter"><i style={{ width: phase === 'idle' ? '76%' : '46%' }} /></div>
-
-                <div className="condition-row">
-                  <span>Visibility</span>
-                  <div className="condition-value"><strong>{phase === 'idle' ? '92' : phase === 'alarm' ? '68' : '41'}</strong><small>%</small></div>
-                </div>
-                <div className="meter"><i style={{ width: phase === 'idle' ? '92%' : phase === 'alarm' ? '68%' : '41%' }} /></div>
-
-                <div className="property-line">
-                  <span>Primary escapeway</span>
-                  <strong className={phaseIndex >= 2 ? 'value-danger' : 'value-safe'}>{phaseIndex >= 2 ? 'BLOCKED' : 'OPEN'}</strong>
-                </div>
-                <div className="property-line">
-                  <span>Alternate refuge</span>
-                  <strong>164 m</strong>
-                </div>
-              </div>
-            </section>
-
-            <section className="property-section">
-              <button className="property-heading"><Icon name="expand_more" /> Trainee actions</button>
-              <div className="property-body action-list">
-                <div><Icon name={phaseIndex >= 1 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 1} /><span>Hazard recognised</span></div>
-                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Unsafe route rejected</span></div>
-                <div><Icon name={phaseIndex >= 3 ? 'check_circle' : 'radio_button_unchecked'} filled={phaseIndex >= 3} /><span>Alternate route selected</span></div>
-              </div>
-            </section>
-
-            <section className="property-section cue-section">
-              <button className="property-heading"><Icon name="expand_more" /> Instructor cue</button>
-              <div className="property-body">
-                <p>{instructorCue}</p>
-              </div>
-            </section>
+            {renderPropertyContent()}
 
             <div className="exercise-controls">
-              <button className="primary-action" onClick={start} disabled={autoRun && phase !== 'complete'}>
-                <Icon name="play_arrow" filled />
-                {phase === 'idle' ? 'Start drill' : phase === 'complete' ? 'Run again' : 'Running'}
+              <button className="primary-action" onClick={toggleRun}>
+                <Icon name={autoRun ? 'pause' : 'play_arrow'} filled />
+                {phase === 'idle' ? 'Start drill' : phase === 'complete' ? 'Run again' : autoRun ? 'Pause drill' : 'Resume drill'}
               </button>
-              <button className="secondary-action" onClick={advance} disabled={phase === 'complete' || autoRun}>
+              <button className="secondary-action" onClick={advance} disabled={phase === 'complete'}>
                 <Icon name="add_alert" /> Next inject
               </button>
               <button className="icon-action" onClick={reset} title="Restart exercise" aria-label="Restart exercise">
@@ -368,12 +789,12 @@ function App() {
           <span className="timeline-title">Exercise timeline</span>
           <div className="playback-controls">
             <button onClick={reset} title="Jump to start"><Icon name="first_page" /></button>
-            <button title="Previous event"><Icon name="skip_previous" /></button>
-            <button onClick={autoRun ? () => setAutoRun(false) : start} className="play-control" title={autoRun ? 'Pause' : 'Play'}>
+            <button onClick={previous} title="Previous event"><Icon name="skip_previous" /></button>
+            <button onClick={toggleRun} className="play-control" title={autoRun ? 'Pause' : 'Play'}>
               <Icon name={autoRun ? 'pause' : 'play_arrow'} filled />
             </button>
-            <button onClick={advance} title="Next event"><Icon name="skip_next" /></button>
-            <button title="Jump to end"><Icon name="last_page" /></button>
+            <button onClick={advance} title="Next event" disabled={phase === 'complete'}><Icon name="skip_next" /></button>
+            <button onClick={jumpEnd} title="Jump to end"><Icon name="last_page" /></button>
           </div>
           <div className="frame-readout">00:{String(elapsed).padStart(2, '0')} / 00:36</div>
         </div>
@@ -388,11 +809,7 @@ function App() {
                 key={item}
                 className={`timeline-marker ${reached ? `reached tone-${event.tone}` : ''} ${item === phase ? 'current' : ''}`}
                 style={{ left: `${(index / (PHASES.length - 1)) * 100}%` }}
-                onClick={() => {
-                  setAutoRun(false)
-                  setPhase(item)
-                  setElapsed(Math.min(index * 8, 36))
-                }}
+                onClick={() => goToPhase(item)}
                 title={`${event.time} - ${event.title}`}
               >
                 <i />
@@ -405,13 +822,22 @@ function App() {
 
         <div className="event-strip">
           {visibleEvents.slice(-3).map((event) => (
-            <div key={event.title} className={`event-chip tone-${event.tone}`}>
+            <button
+              key={event.title}
+              className={`event-chip tone-${event.tone}`}
+              onClick={() => {
+                const target = PHASES.find((item) => EVENTS[item].title === event.title)
+                if (target) goToPhase(target)
+              }}
+            >
               <span>{event.time}</span>
               <strong>{event.title}</strong>
-            </div>
+            </button>
           ))}
           {phase === 'complete' && (
-            <div className="debrief-ready"><Icon name="task_alt" filled /> Exercise ready for debrief</div>
+            <button className="debrief-ready" onClick={() => selectWorkspace('Debrief')}>
+              <Icon name="task_alt" filled /> Open debrief
+            </button>
           )}
         </div>
       </section>
@@ -424,6 +850,25 @@ function App() {
           <span>Refuge 2: 164 m</span>
         </div>
       </footer>
+
+      {notice && <div className="app-toast">{notice}</div>}
+
+      {helpOpen && (
+        <div className="modal-backdrop" onClick={() => setHelpOpen(false)}>
+          <section className="help-modal" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <strong>MineSafe XR controls</strong>
+              <button onClick={() => setHelpOpen(false)}><Icon name="close" /></button>
+            </header>
+            <div>
+              <p><strong>Viewport:</strong> drag to orbit, right-drag to pan, wheel to zoom.</p>
+              <p><strong>Timeline:</strong> click any event marker to inspect that drill state.</p>
+              <p><strong>Scenario:</strong> use Next inject or Scenario menu to introduce events manually.</p>
+              <p><strong>Prototype:</strong> all displayed hazard and environment values are simulated training data.</p>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

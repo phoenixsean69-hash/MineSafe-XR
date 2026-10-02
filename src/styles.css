@@ -957,3 +957,258 @@ body {
 }
 
 /* MINESAFE_FIT_WINDOW_END */
+/* MINESAFE_DOCK_INTERACTIONS_START */
+
+/* True desktop-workstation layout: the app never scrolls as one page.
+   Each editor owns its own overflow, while the timeline remains docked. */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 0;
+}
+
+.app-shell {
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  max-height: 100vh;
+  overflow: hidden;
+  grid-template-rows: 34px 32px minmax(0, 1fr) 140px 26px;
+}
+
+.editor-grid {
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden;
+}
+
+.tool-rail,
+.outliner-panel,
+.viewport-editor,
+.properties-editor {
+  min-height: 0;
+  height: 100%;
+}
+
+.outliner-panel,
+.properties-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.viewport-stage {
+  min-height: 0;
+  height: 100%;
+}
+
+/* Bottom dock is its own editor row and never moves with side-panel scrolling. */
+.timeline-editor {
+  position: relative;
+  z-index: 20;
+  min-height: 0;
+  height: 140px;
+  overflow: hidden;
+  border-top: 1px solid #111;
+  box-shadow: 0 -1px 0 rgba(255,255,255,.03);
+}
+
+/* Top dropdown menus */
+.main-menu {
+  position: relative;
+}
+
+.main-menu button.active {
+  background: #3b3b3b;
+  color: #fff;
+}
+
+.app-dropdown {
+  position: absolute;
+  z-index: 100;
+  top: 32px;
+  left: 0;
+  width: 190px;
+  padding: 4px;
+  background: #303030;
+  border: 1px solid #151515;
+  box-shadow: 0 8px 22px rgba(0,0,0,.45);
+}
+
+.app-dropdown button {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 3px;
+  color: #d2d2d2;
+  text-align: left;
+}
+
+.app-dropdown button:hover {
+  background: #4a4a4a;
+  color: #fff;
+}
+
+/* Tree rows are real buttons now. */
+button.tree-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.tree-row:hover {
+  background: #3a3a3a;
+}
+
+button.tree-row.selected {
+  background: #365a76;
+}
+
+/* Functional property accordions */
+.property-heading {
+  cursor: pointer;
+}
+
+.property-heading:hover {
+  background: #343434;
+}
+
+/* Grid visibility toggle */
+.viewport-stage.grid-hidden::before {
+  display: none;
+}
+
+/* Timeline/event controls now behave as interactive editor controls. */
+.timeline-toolbar button:disabled,
+.exercise-controls button:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+}
+
+.event-chip {
+  cursor: pointer;
+}
+
+button.event-chip {
+  font: inherit;
+}
+
+button.event-chip:hover {
+  background: #3b3b3b;
+  border-color: #555;
+}
+
+button.debrief-ready {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+button.debrief-ready:hover {
+  color: #c1ead3;
+}
+
+/* Feedback for menu/tool actions. */
+.app-toast {
+  position: fixed;
+  z-index: 500;
+  left: 50%;
+  bottom: 180px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: rgba(40,40,40,.96);
+  color: #e6e6e6;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+/* Help dialog */
+.modal-backdrop {
+  position: fixed;
+  z-index: 600;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,.58);
+}
+
+.help-modal {
+  width: min(520px, calc(100vw - 40px));
+  border: 1px solid #151515;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #303030;
+  box-shadow: 0 18px 50px rgba(0,0,0,.55);
+}
+
+.help-modal header {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: #282828;
+  border-bottom: 1px solid #181818;
+}
+
+.help-modal header button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.help-modal header button:hover {
+  background: #3c3c3c;
+  color: #fff;
+}
+
+.help-modal > div {
+  padding: 14px 16px;
+  color: #bdbdbd;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.help-modal p {
+  margin: 0 0 10px;
+}
+
+.help-modal p:last-child {
+  margin-bottom: 0;
+}
+
+/* Keep the docked layout usable on shorter displays without shrinking text. */
+@media (max-height: 780px) {
+  .app-shell {
+    grid-template-rows: 34px 32px minmax(0, 1fr) 124px 26px;
+  }
+
+  .timeline-editor {
+    height: 124px;
+  }
+
+  .app-toast {
+    bottom: 164px;
+  }
+}
+
+/* MINESAFE_DOCK_INTERACTIONS_END */
