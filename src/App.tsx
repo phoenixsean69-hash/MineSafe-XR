@@ -162,7 +162,7 @@ function App() {
             </button>
           ))}
         </div>
-        <div className="scene-file">MXR-01 Â· North Decline / Level 4</div>
+        <div className="scene-file">MXR-01 - North Decline / Level 4</div>
       </div>
 
       <section className="editor-grid">
@@ -201,7 +201,7 @@ function App() {
             <div className="scenario-glyph danger"><Icon name="local_fire_department" filled /></div>
             <div>
               <strong>Underground fire drill</strong>
-              <span>North Decline Â· Level 4</span>
+              <span>North Decline - Level 4</span>
             </div>
           </div>
 
@@ -255,7 +255,7 @@ function App() {
 
             <div className="viewport-overlay top-left">
               <strong>North Decline / L4</strong>
-              <span>Training environment Â· simulated data</span>
+              <span>Training environment - simulated data</span>
             </div>
 
             {phase !== 'idle' && phase !== 'complete' && (
@@ -393,7 +393,7 @@ function App() {
                   setPhase(item)
                   setElapsed(Math.min(index * 8, 36))
                 }}
-                title={`${event.time} â€” ${event.title}`}
+                title={`${event.time} - ${event.title}`}
               >
                 <i />
                 <span>{event.time}</span>
@@ -417,7 +417,7 @@ function App() {
       </section>
 
       <footer className="status-bar">
-        <div><Icon name="info" /> Prototype Â· simulated training data only</div>
+        <div><Icon name="info" /> Prototype - simulated training data only</div>
         <div className="status-right">
           <span>Worker 017</span>
           <span>Route A: {phaseIndex >= 2 ? 'Blocked' : 'Open'}</span>
