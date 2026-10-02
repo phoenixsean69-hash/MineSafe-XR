@@ -556,3 +556,29 @@ button:focus-visible { outline: 1px solid var(--accent-hi); outline-offset: -1px
 }
 
 /* MINESAFE_BLENDER_POLISH_V2_END */
+/* MINESAFE_REMOVE_SELECTED_EDGES_START */
+
+/* Remove colored edge accents from selected tools / tabs.
+   Keep selection visible through neutral background, border and text only. */
+.tool-rail button.active {
+  background: #4c4c4c;
+  border-color: #5d5d5d;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.properties-tabs button.active {
+  background: #454545;
+  color: #ffffff;
+  box-shadow: none;
+  padding-left: 0;
+}
+
+/* Optional consistency: no colored edge accents anywhere else */
+.tool-rail button.active:hover,
+.properties-tabs button.active:hover {
+  background: #4f4f4f;
+  color: #ffffff;
+}
+
+/* MINESAFE_REMOVE_SELECTED_EDGES_END */
