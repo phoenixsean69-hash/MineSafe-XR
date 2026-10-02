@@ -582,3 +582,206 @@ button:focus-visible { outline: 1px solid var(--accent-hi); outline-offset: -1px
 }
 
 /* MINESAFE_REMOVE_SELECTED_EDGES_END */
+/* MINESAFE_UI_SCALE_UP_START */
+
+/* Slightly increase overall text and control sizing for better readability. */
+
+.app-shell {
+  grid-template-rows: 34px 32px minmax(570px, 1fr) 140px 26px;
+}
+
+.app-menu-bar {
+  font-size: 12px;
+}
+
+.brand-chip strong {
+  font-size: 13px;
+}
+
+.main-menu button {
+  font-size: 12px;
+}
+
+.prototype-tag,
+.status-indicator,
+.scene-file {
+  font-size: 11px;
+}
+
+.workspace-tabs button {
+  height: 29px;
+  font-size: 11px;
+  padding: 0 16px;
+}
+
+.editor-grid {
+  grid-template-columns: 42px 270px minmax(660px, 1fr) 360px;
+}
+
+.tool-rail button {
+  width: 32px;
+  height: 32px;
+}
+
+.editor-header {
+  height: 30px;
+  font-size: 11px;
+  padding: 0 9px;
+}
+
+.editor-header .app-icon,
+.viewport-header .app-icon,
+.timeline-toolbar .app-icon {
+  font-size: 17px;
+}
+
+.scenario-name strong {
+  font-size: 12px;
+}
+
+.scenario-name span {
+  font-size: 10px;
+}
+
+.tree-row {
+  height: 29px;
+  font-size: 11px;
+}
+
+.tree-row .app-icon {
+  font-size: 16px;
+}
+
+.section-title {
+  font-size: 10px;
+}
+
+.compact-facts dt {
+  font-size: 10px;
+}
+
+.compact-facts dd {
+  font-size: 11px;
+}
+
+.brief-section p {
+  font-size: 11px;
+}
+
+.viewport-header button {
+  height: 25px;
+  font-size: 10px;
+}
+
+.viewport-overlay strong {
+  font-size: 11px;
+}
+
+.viewport-overlay span {
+  font-size: 10px;
+}
+
+.simulation-banner strong {
+  font-size: 10px;
+}
+
+.simulation-banner span {
+  font-size: 9px;
+}
+
+.viewport-hint {
+  font-size: 9px;
+}
+
+.properties-tabs button {
+  width: 38px;
+  height: 36px;
+}
+
+.properties-tabs .app-icon {
+  font-size: 18px;
+}
+
+.risk-readout span {
+  font-size: 10px;
+}
+
+.risk-readout strong {
+  font-size: 18px;
+}
+
+.risk-readout .app-icon {
+  font-size: 24px;
+}
+
+.property-heading {
+  height: 30px;
+  font-size: 10px;
+}
+
+.condition-row,
+.property-line {
+  min-height: 28px;
+  font-size: 10px;
+}
+
+.condition-value strong,
+.property-line strong {
+  font-size: 11px;
+}
+
+.condition-value small {
+  font-size: 9px;
+}
+
+.action-list > div {
+  min-height: 30px;
+  font-size: 10px;
+}
+
+.cue-section p {
+  font-size: 10px;
+}
+
+.exercise-controls button {
+  height: 34px;
+  font-size: 10px;
+}
+
+.timeline-editor {
+  grid-template-rows: 30px 62px 48px;
+}
+
+.timeline-title,
+.frame-readout {
+  font-size: 10px;
+}
+
+.timeline-marker span {
+  font-size: 9px;
+}
+
+.event-chip {
+  height: 30px;
+  font-size: 9px;
+}
+
+.debrief-ready {
+  font-size: 9px;
+}
+
+.status-bar {
+  font-size: 9px;
+}
+
+@media (max-height: 780px) {
+  .app-shell {
+    grid-template-rows: 34px 32px minmax(520px, 1fr) 124px 26px;
+  }
+
+  .timeline-editor {
+    grid-template-rows: 28px 52px 44px;
+  }
+}
+
+/* MINESAFE_UI_SCALE_UP_END */
