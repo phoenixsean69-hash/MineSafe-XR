@@ -785,3 +785,175 @@ button:focus-visible { outline: 1px solid var(--accent-hi); outline-offset: -1px
 }
 
 /* MINESAFE_UI_SCALE_UP_END */
+/* MINESAFE_FIT_WINDOW_START */
+
+/* Keep the current visual scale, but force the workstation layout
+   to stay inside the browser viewport. */
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+body {
+  min-width: 0;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Fixed tool/sidebar widths are preserved.
+   Only the central 3D viewport is allowed to contract. */
+.editor-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: 42px 270px minmax(0, 1fr) 360px;
+  overflow: hidden;
+}
+
+.tool-rail,
+.outliner-panel,
+.viewport-editor,
+.properties-editor,
+.properties-content,
+.viewport-stage {
+  min-width: 0;
+}
+
+.viewport-editor {
+  overflow: hidden;
+}
+
+/* Keep the right properties area inside its assigned column. */
+.properties-editor {
+  width: 100%;
+  max-width: 360px;
+  overflow: hidden;
+}
+
+.properties-content {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Long instructor text should wrap instead of forcing the panel wider. */
+.cue-section p,
+.brief-section p,
+.property-body,
+.property-line,
+.condition-row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cue-section p,
+.brief-section p {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* Critical fix: 1fr columns otherwise respect button min-content width,
+   which was pushing "Next inject" out of the window. */
+.exercise-controls {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+}
+
+.exercise-controls button {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.primary-action,
+.secondary-action {
+  white-space: nowrap;
+}
+
+.primary-action .app-icon,
+.secondary-action .app-icon {
+  flex: 0 0 auto;
+}
+
+/* Top bars should use the available width instead of expanding the page. */
+.app-menu-bar,
+.workspace-tabs-bar {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.main-menu {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.top-status {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.prototype-tag,
+.status-indicator {
+  white-space: nowrap;
+}
+
+.scene-file {
+  min-width: 0;
+  max-width: 36%;
+}
+
+/* The viewport header must shrink without wrapping Object mode. */
+.viewport-header {
+  min-width: 0;
+}
+
+.viewport-mode {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.viewport-actions {
+  flex: 0 0 auto;
+}
+
+/* Preserve current dimensions on normal desktop widths.
+   On narrower windows only shave panel width, never font/control size. */
+@media (max-width: 1500px) {
+  .editor-grid {
+    grid-template-columns: 42px 250px minmax(0, 1fr) 340px;
+  }
+
+  .properties-editor {
+    max-width: 340px;
+  }
+}
+
+@media (max-width: 1320px) {
+  .editor-grid {
+    grid-template-columns: 42px 230px minmax(0, 1fr) 320px;
+  }
+
+  .properties-editor {
+    max-width: 320px;
+  }
+
+  .scene-file {
+    max-width: 28%;
+  }
+}
+
+/* MINESAFE_FIT_WINDOW_END */
