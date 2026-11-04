@@ -1,11 +1,15 @@
 import Icon from '../components/Icon'
 import type { ScenarioKind } from '../types'
 import { SCENARIOS } from '../types'
+import type { DrillSession } from '../session'
+import { formatDuration } from '../session'
 
 type Props = {
   activeScenario: ScenarioKind
   onLoad: (scenario: ScenarioKind) => void
   onOpenSetup: (scenario: ScenarioKind) => void
+  recent: DrillSession[]
+  onOpenSession: (session: DrillSession) => void
 }
 
 export default function LibraryScreen(props: Props) {
@@ -17,7 +21,7 @@ export default function LibraryScreen(props: Props) {
         <div>
           <span className="section-kicker">SCENARIO LIBRARY</span>
           <h2>Training scenarios</h2>
-          <p>Prototype scenarios for mine emergency drills and incident-to-training workflows.</p>
+          <p>Choose a training scenario, configure the participants and run an instructor-led drill.</p>
         </div>
         <div className="library-meta">
           <Icon name="inventory_2" />
@@ -52,7 +56,7 @@ export default function LibraryScreen(props: Props) {
 
       <section className="pipeline-panel">
         <div className="editor-header">
-          <span>Incident-to-training workflow</span>
+          <span>Planned incident-to-training workflow</span>
           <Icon name="account_tree" />
         </div>
         <div className="pipeline-steps">
@@ -70,6 +74,17 @@ export default function LibraryScreen(props: Props) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="saved-sessions">
+        <div className="editor-header"><span>Recent sessions on this device</span><span>Up to 12 records</span></div>
+        {props.recent.length ? props.recent.map(session => <button className="saved-session" key={session.id}
+          onClick={() => props.onOpenSession(session)}>
+          <Icon name="fact_check" />
+          <span><strong>{session.config.trainee}</strong><small>{SCENARIOS[session.scenario].title + ' · ' + session.config.area}</small></span>
+          <span>{formatDuration(session.elapsedMs)}</span><span>{session.status === 'complete' ? 'Ended' : 'Paused'}</span>
+          <Icon name="chevron_right" />
+        </button>) : <p className="empty-state">Previous drills appear here when you prepare another drill. Export sessions you need to retain.</p>}
       </section>
     </section>
   )

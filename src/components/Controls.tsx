@@ -1,17 +1,20 @@
 import type { ReactNode } from 'react'
+import Icon from './Icon'
 
-export function RadioAction({
+export function ObservationControl({
   label,
   checked,
-  onSelect,
+  onChange,
+  disabled = false,
 }: {
   label: string
   checked: boolean
-  onSelect: () => void
+  onChange: (checked: boolean) => void
+  disabled?: boolean
 }) {
   return (
-    <label className={`radio-action ${checked ? 'is-checked' : ''}`}>
-      <input type="radio" checked={checked} onChange={onSelect} />
+    <label className={`radio-action ${checked ? 'is-checked' : ''} ${disabled ? 'is-disabled' : ''}`}>
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
   )
@@ -58,8 +61,8 @@ export function PanelSection({
 }) {
   return (
     <section className="property-section">
-      <button className="property-heading" onClick={onToggle}>
-        <span className="material-symbols-rounded app-icon">{open ? 'expand_more' : 'chevron_right'}</span>
+      <button className="property-heading" aria-expanded={open} onClick={onToggle}>
+        <Icon name={open ? 'expand_more' : 'chevron_right'} />
         {icon}
         {title}
       </button>

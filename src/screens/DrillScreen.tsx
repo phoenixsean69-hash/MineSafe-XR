@@ -1,15 +1,11 @@
 import { useMemo, useState } from 'react'
 import Icon from '../components/Icon'
 import MineScene from '../components/MineScene'
-import { PanelSection, RadioAction, SystemSwitch } from '../components/Controls'
-import type { DrillPhase, ScenarioKind, ViewStyle } from '../types'
-import { PHASES, PHASE_TIME, SCENARIOS } from '../types'
-
-type Assessment = {
-  hazard: boolean
-  route: boolean
-  alternate: boolean
-}
+import { PanelSection, ObservationControl, SystemSwitch } from '../components/Controls'
+import type { CameraMode, DrillPhase, ScenarioKind, ViewStyle } from '../types'
+import { PHASES, SCENARIOS } from '../types'
+import { canObserve, formatDuration } from '../session'
+import type { DrillSession, ObservationKey } from '../session'
 
 type Props = {
   scenario: ScenarioKind
@@ -21,8 +17,9 @@ type Props = {
   showWarnings: boolean
   showGrid: boolean
   viewStyle: ViewStyle
-  assessment: Assessment
-  onAssessment: (next: Assessment) => void
+  session: DrillSession
+  elapsedMs: number
+  onObservation: (key: ObservationKey, checked: boolean) => void
   onAutoAdvance: (checked: boolean) => void
   onShowRoutes: (checked: boolean) => void
   onShowLabels: (checked: boolean) => void
@@ -38,7 +35,7 @@ type Props = {
 type PropertyTab = 'safety' | 'environment' | 'routes' | 'assessment'
 
 export default function DrillScreen(props: Props) {
-  const [activeTool, setActiveTool] = useState('select')
+  const [activeTool, setActiveTool] = useState<CameraMode>('orbit')
   const [selectedEntity, setSelectedEntity] = useState('worker')
   const [activeProperty, setActiveProperty] = useState<PropertyTab>('safety')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -54,15 +51,15 @@ export default function DrillScreen(props: Props) {
 
   const definition = SCENARIOS[props.scenario]
   const phaseIndex = PHASES.indexOf(props.phase)
-  const elapsed = PHASE_TIME[props.phase]
+  const elapsed = formatDuration(props.elapsedMs)
 
-  const risk = props.phase === 'idle' ? 'Low' : props.phase === 'alarm' ? 'High' : props.phase === 'blocked' ? 'Critical' : 'Controlled'
+  const risk = props.phase === 'idle' ? 'Low' : props.phase === 'alarm' ? 'High' : props.phase === 'blocked' ? 'Critical' : props.phase === 'complete' ? 'Review' : 'Rerouted'
 
   const instructorCue = useMemo(() => {
     if (props.phase === 'idle') return 'Confirm the trainee is ready, then start the exercise.'
     if (props.phase === 'alarm') return 'Watch for hazard recognition before introducing the next inject.'
     if (props.phase === 'blocked') return 'Do not coach the route choice. Observe the trainee response.'
-    if (props.phase === 'reroute') return 'Allow the trainee to continue to the refuge point.'
+    if (props.phase === 'reroute') return 'Review the alternate route with the trainee. Record only actions you observe.'
     return 'Review the route decision and response timing with the trainee.'
   }, [props.phase])
 
@@ -74,16 +71,14 @@ export default function DrillScreen(props: Props) {
     ['safety', 'health_and_safety', 'Safety'],
     ['environment', 'air', 'Environment'],
     ['routes', 'route', 'Routes'],
-    ['assessment', 'fact_check', 'Assessment'],
+    ['assessment', 'fact_check', 'Observations'],
   ]
 
   return (
     <section className="screen-editor-grid">
       <aside className="tool-rail" aria-label="Viewport tools">
         {[
-          ['select', 'near_me', 'Select'],
-          ['move', 'open_with', 'Move'],
-          ['rotate', 'rotate_right', 'Rotate'],
+          ['orbit', 'orbit', 'Orbit'],
           ['pan', 'pan_tool', 'Pan'],
           ['zoom', 'zoom_in', 'Zoom'],
         ].map(([id, icon, label]) => (
@@ -92,7 +87,7 @@ export default function DrillScreen(props: Props) {
             className={activeTool === id ? 'active' : ''}
             title={label}
             onClick={() => {
-              setActiveTool(id)
+              setActiveTool(id as CameraMode)
               props.onNotice(`${label} tool active`)
             }}
           >
@@ -124,13 +119,13 @@ export default function DrillScreen(props: Props) {
           <div className="scenario-glyph danger"><Icon name={props.scenario === 'fire' ? 'local_fire_department' : props.scenario === 'rockfall' ? 'landslide' : 'air'} filled /></div>
           <div>
             <strong>{definition.title}</strong>
-            <span>{definition.subtitle}</span>
+            <span>{props.session.config.area}</span>
           </div>
         </div>
 
         <div className="tree-list">
           <button className="tree-row root" onClick={() => setSelectedEntity('scene')}><Icon name="expand_more" /><Icon name="folder_open" /> Training scene</button>
-          <button className={`tree-row child ${selectedEntity === 'worker' ? 'selected' : ''}`} onClick={() => setSelectedEntity('worker')}><Icon name="person" /> Worker 017</button>
+          <button className={`tree-row child ${selectedEntity === 'worker' ? 'selected' : ''}`} onClick={() => setSelectedEntity('worker')}><Icon name="person" /> {props.session.config.trainee}</button>
           <button className={`tree-row child ${selectedEntity === 'asset' ? 'selected' : ''}`} onClick={() => setSelectedEntity('asset')}><Icon name="precision_manufacturing" /> {definition.sceneAsset}</button>
           <button className={`tree-row child ${selectedEntity === 'route' ? 'selected' : ''}`} onClick={() => { setSelectedEntity('route'); setActiveProperty('routes') }}><Icon name="route" /> Route A</button>
           <button className={`tree-row child ${selectedEntity === 'refuge' ? 'selected' : ''}`} onClick={() => { setSelectedEntity('refuge'); setActiveProperty('routes') }}><Icon name="meeting_room" /> Refuge Chamber 2</button>
@@ -140,9 +135,9 @@ export default function DrillScreen(props: Props) {
         <div className="panel-section compact-facts">
           <div className="section-title">Exercise</div>
           <dl>
-            <div><dt>Trainee</dt><dd>Worker 017</dd></div>
-            <div><dt>Personnel</dt><dd>6</dd></div>
-            <div><dt>Elapsed</dt><dd>00:{String(elapsed).padStart(2, '0')}</dd></div>
+            <div><dt>Trainee</dt><dd>{props.session.config.trainee}</dd></div>
+            <div><dt>Personnel</dt><dd>{props.session.config.personnel}</dd></div>
+            <div><dt>Active time</dt><dd>{elapsed}</dd></div>
           </dl>
         </div>
 
@@ -156,10 +151,10 @@ export default function DrillScreen(props: Props) {
         <div className="viewport-header editor-header">
           <div className="viewport-mode">
             <button
-              className={activeTool === 'select' ? 'active' : ''}
-              onClick={() => setActiveTool('select')}
+              className="active"
+              onClick={() => setCameraKey(value => value + 1)}
             >
-              <Icon name="deployed_code" /> Object mode
+              <Icon name="deployed_code" /> Frame scene
             </button>
             <span className="divider" />
             <button
@@ -198,6 +193,7 @@ export default function DrillScreen(props: Props) {
             phase={props.phase}
             scenario={props.scenario}
             viewStyle={props.viewStyle}
+            cameraMode={activeTool}
             showRoutes={props.showRoutes}
             showLabels={props.showLabels}
           />
@@ -210,8 +206,8 @@ export default function DrillScreen(props: Props) {
 
           {props.showLabels && (
             <div className="viewport-overlay top-left">
-              <strong>{definition.subtitle}</strong>
-              <span>Training environment - simulated data</span>
+              <strong>{props.session.config.area}</strong>
+              <span>Cutaway training view · Simulated hazards</span>
             </div>
           )}
 
@@ -260,7 +256,7 @@ export default function DrillScreen(props: Props) {
                   <span>Current training risk</span>
                   <strong>{risk}</strong>
                 </div>
-                <Icon name={risk === 'Low' || risk === 'Controlled' ? 'verified_user' : 'warning'} filled />
+                <Icon name={risk === 'Low' || risk === 'Review' ? 'verified_user' : 'warning'} filled />
               </div>
 
               <PanelSection title="Mine conditions" open={openSections.conditions} onToggle={() => toggle('conditions')}>
@@ -280,22 +276,23 @@ export default function DrillScreen(props: Props) {
                 <div className="property-line"><span>Alternate refuge</span><strong>164 m</strong></div>
               </PanelSection>
 
-              <PanelSection title="Trainee actions" open={openSections.actions} onToggle={() => toggle('actions')}>
+              <PanelSection title="Instructor observations" open={openSections.actions} onToggle={() => toggle('actions')}>
+                <p className="field-help">Mark actions you observe during a running drill. Timeline playback does not mark them.</p>
                 <div className="action-list">
-                  <RadioAction
+                  <ObservationControl
                     label="Hazard recognised"
-                    checked={phaseIndex >= 1 || props.assessment.hazard}
-                    onSelect={() => props.onAssessment({ ...props.assessment, hazard: true })}
+                    checked={props.session.observations.hazard !== null} disabled={!canObserve(props.session, 'hazard')}
+                    onChange={checked => props.onObservation('hazard', checked)}
                   />
-                  <RadioAction
+                  <ObservationControl
                     label="Unsafe route rejected"
-                    checked={phaseIndex >= 3 || props.assessment.route}
-                    onSelect={() => props.onAssessment({ ...props.assessment, route: true })}
+                    checked={props.session.observations.route !== null} disabled={!canObserve(props.session, 'route')}
+                    onChange={checked => props.onObservation('route', checked)}
                   />
-                  <RadioAction
+                  <ObservationControl
                     label="Alternate route selected"
-                    checked={phaseIndex >= 3 || props.assessment.alternate}
-                    onSelect={() => props.onAssessment({ ...props.assessment, alternate: true })}
+                    checked={props.session.observations.alternate !== null} disabled={!canObserve(props.session, 'alternate')}
+                    onChange={checked => props.onObservation('alternate', checked)}
                   />
                 </div>
               </PanelSection>
@@ -306,7 +303,7 @@ export default function DrillScreen(props: Props) {
 
               <PanelSection title="System aids" open={openSections.aids} onToggle={() => toggle('aids')}>
                 <div className="switch-list">
-                  <SystemSwitch label="Auto-advance events" checked={props.autoAdvance} onChange={props.onAutoAdvance} />
+                  <SystemSwitch label="Automatic event playback" checked={props.autoAdvance} onChange={props.onAutoAdvance} />
                   <SystemSwitch label="Route guidance" checked={props.showRoutes} onChange={props.onShowRoutes} />
                   <SystemSwitch label="Scene labels" checked={props.showLabels} onChange={props.onShowLabels} />
                   <SystemSwitch label="Hazard banner" checked={props.showWarnings} onChange={props.onShowWarnings} />
@@ -351,11 +348,11 @@ export default function DrillScreen(props: Props) {
                 <div><span>Exercise progress</span><strong>{props.phase === 'complete' ? 'Complete' : `${phaseIndex}/4 events`}</strong></div>
                 <Icon name="fact_check" filled />
               </div>
-              <PanelSection title="Assessment" open={openSections.assessment} onToggle={() => toggle('assessment')}>
+              <PanelSection title="Instructor observations" open={openSections.assessment} onToggle={() => toggle('assessment')}>
                 <div className="action-list">
-                  <RadioAction label="Hazard recognised" checked={phaseIndex >= 1 || props.assessment.hazard} onSelect={() => props.onAssessment({ ...props.assessment, hazard: true })} />
-                  <RadioAction label="Unsafe route rejected" checked={phaseIndex >= 3 || props.assessment.route} onSelect={() => props.onAssessment({ ...props.assessment, route: true })} />
-                  <RadioAction label="Alternate route selected" checked={phaseIndex >= 3 || props.assessment.alternate} onSelect={() => props.onAssessment({ ...props.assessment, alternate: true })} />
+                  <ObservationControl label="Hazard recognised" checked={props.session.observations.hazard !== null} disabled={!canObserve(props.session, 'hazard')} onChange={checked => props.onObservation('hazard', checked)} />
+                  <ObservationControl label="Unsafe route rejected" checked={props.session.observations.route !== null} disabled={!canObserve(props.session, 'route')} onChange={checked => props.onObservation('route', checked)} />
+                  <ObservationControl label="Alternate route selected" checked={props.session.observations.alternate !== null} disabled={!canObserve(props.session, 'alternate')} onChange={checked => props.onObservation('alternate', checked)} />
                 </div>
               </PanelSection>
             </>
@@ -364,10 +361,10 @@ export default function DrillScreen(props: Props) {
           <div className="exercise-controls">
             <button className="primary-action" onClick={props.onStartPause}>
               <Icon name={props.autoRun ? 'pause' : 'play_arrow'} filled />
-              {props.phase === 'idle' ? 'Start drill' : props.phase === 'complete' ? 'Run again' : props.autoRun ? 'Pause drill' : 'Resume drill'}
+              {props.session.status === 'ready' ? 'Start drill' : props.session.status === 'complete' ? 'New drill' : props.autoRun ? 'Pause drill' : 'Resume drill'}
             </button>
-            <button className="secondary-action" onClick={props.onAdvance} disabled={props.phase === 'complete'}>
-              <Icon name="add_alert" /> Next inject
+            <button className="secondary-action" onClick={props.onAdvance} disabled={props.session.status !== 'running'}>
+              <Icon name="add_alert" /> Next event
             </button>
             <button className="icon-action" onClick={props.onReset} title="Restart exercise">
               <Icon name="restart_alt" />

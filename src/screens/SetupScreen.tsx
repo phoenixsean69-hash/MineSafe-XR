@@ -3,6 +3,7 @@ import Icon from '../components/Icon'
 import MineScene from '../components/MineScene'
 import { SystemSwitch } from '../components/Controls'
 import type { DrillPhase, ScenarioKind, ViewStyle } from '../types'
+import type { DrillConfig } from '../session'
 import { SCENARIOS } from '../types'
 
 type Props = {
@@ -13,6 +14,9 @@ type Props = {
   showLabels: boolean
   showGrid: boolean
   autoAdvance: boolean
+  config: DrillConfig
+  locked: boolean
+  onConfig: (config: DrillConfig) => void
   onScenario: (scenario: ScenarioKind) => void
   onPhase: (phase: DrillPhase) => void
   onViewStyle: (style: ViewStyle) => void
@@ -21,130 +25,103 @@ type Props = {
   onShowGrid: (checked: boolean) => void
   onAutoAdvance: (checked: boolean) => void
   onStartDrill: () => void
+  onNewDrill: () => void
   onNotice: (message: string) => void
 }
 
 export default function SetupScreen(props: Props) {
   const [selectedNode, setSelectedNode] = useState('hazard')
   const definition = SCENARIOS[props.scenario]
-
   return (
     <section className="setup-screen">
       <aside className="setup-tree">
-        <div className="editor-header">
-          <span>Scenario setup</span>
-          <button onClick={() => props.onNotice('Scenario setup')}><Icon name="more_vert" /></button>
-        </div>
-
+        <div className="editor-header"><span>Scenario setup</span><Icon name="tune" /></div>
         <div className="setup-title">
           <span className="setup-code">{definition.code}</span>
           <strong>{definition.title}</strong>
-          <small>{definition.subtitle}</small>
+          <small>{props.config.area}</small>
         </div>
-
         <div className="tree-list">
           {[
-            ['environment', 'location_on', 'Environment'],
-            ['hazard', 'warning', 'Hazard source'],
-            ['routes', 'route', 'Escape routes'],
-            ['people', 'group', 'Participants'],
-            ['assessment', 'fact_check', 'Assessment'],
-          ].map(([id, icon, label]) => (
-            <button
-              key={id}
-              className={`tree-row ${selectedNode === id ? 'selected' : ''}`}
-              onClick={() => setSelectedNode(id)}
-            >
-              <Icon name={icon} /> {label}
-            </button>
-          ))}
+            ['environment', 'location_on', 'Environment'], ['hazard', 'warning', 'Hazard source'],
+            ['people', 'group', 'Participants'], ['assessment', 'fact_check', 'Exercise controls'],
+          ].map(([id, icon, label]) => <button key={id}
+            className={'tree-row ' + (selectedNode === id ? 'selected' : '')}
+            onClick={() => {
+              setSelectedNode(id)
+              document.getElementById('setup-' + id)?.focus()
+            }}><Icon name={icon} /> {label}</button>)}
         </div>
-
         <div className="panel-section brief-section">
-          <div className="section-title">Objective</div>
-          <p>{definition.objective}</p>
+          <div className="section-title">Objective</div><p>{definition.objective}</p>
+        </div>
+        <div className="panel-section brief-section">
+          <div className="section-title">Before you start</div>
+          <p>Preview the hazard and routes, check the participant details, then start the drill. Preview controls do not record observations.</p>
         </div>
       </aside>
 
       <section className="setup-viewport">
-        <div className="editor-header">
-          <span>Scenario preview</span>
+        <div className="editor-header"><span>Scenario preview</span>
           <div className="viewport-actions">
-            <button className={props.viewStyle === 'wireframe' ? 'active-icon' : ''} onClick={() => props.onViewStyle('wireframe')} title="Wireframe"><Icon name="grid_on" /></button>
-            <button className={props.viewStyle === 'solid' ? 'active-icon' : ''} onClick={() => props.onViewStyle('solid')} title="Solid"><Icon name="circle" filled /></button>
-            <button className={props.viewStyle === 'rendered' ? 'active-icon' : ''} onClick={() => props.onViewStyle('rendered')} title="Rendered"><Icon name="view_in_ar" /></button>
+            {(['wireframe', 'solid', 'rendered'] as ViewStyle[]).map(style =>
+              <button key={style} className={props.viewStyle === style ? 'active-icon' : ''}
+                onClick={() => props.onViewStyle(style)} title={style}>
+                <Icon name={style === 'wireframe' ? 'grid_on' : style === 'solid' ? 'circle' : 'view_in_ar'} /></button>)}
           </div>
         </div>
-
-        <div className={`viewport-stage ${props.showGrid ? '' : 'grid-hidden'}`}>
-          <MineScene
-            phase={props.phase}
-            scenario={props.scenario}
-            viewStyle={props.viewStyle}
-            showRoutes={props.showRoutes}
-            showLabels={props.showLabels}
-          />
-          <div className="viewport-overlay top-left">
-            <strong>{definition.subtitle}</strong>
-            <span>Scenario builder preview</span>
-          </div>
+        <div className={'viewport-stage ' + (props.showGrid ? '' : 'grid-hidden')}>
+          <MineScene phase={props.phase} scenario={props.scenario} viewStyle={props.viewStyle}
+            showRoutes={props.showRoutes} showLabels={props.showLabels} />
+          <div className="viewport-overlay top-left"><strong>{props.config.area}</strong><span>Preview · Shared training layout</span></div>
         </div>
       </section>
 
       <aside className="setup-properties">
-        <div className="editor-header">
-          <span>Scenario properties</span>
-          <Icon name="tune" />
-        </div>
-
+        <div className="editor-header"><span>Scenario properties</span><Icon name="tune" /></div>
         <div className="setup-form">
-          <label>
-            <span>Emergency type</span>
-            <select value={props.scenario} onChange={(event) => { props.onScenario(event.target.value as ScenarioKind); props.onPhase('idle') }}>
-              <option value="fire">Underground fire</option>
-              <option value="rockfall">Fall of ground</option>
+          {props.locked && <div className="setup-note">
+            <p>Details are locked for this session. Prepare a new drill to change them.</p>
+            <button className="secondary-action" onClick={props.onNewDrill}>Prepare new drill</button>
+          </div>}
+          <label><span>Emergency type</span>
+            <select id="setup-hazard" value={props.scenario} disabled={props.locked}
+              onChange={event => props.onScenario(event.target.value as ScenarioKind)}>
+              <option value="fire">Underground fire</option><option value="rockfall">Fall of ground</option>
               <option value="ventilation">Ventilation loss</option>
             </select>
           </label>
-
-          <label>
-            <span>Mine area</span>
-            <select defaultValue="north">
-              <option value="north">North Decline / Level 4</option>
-              <option value="east">East Access / Level 3</option>
-              <option value="vent">Ventilation District B</option>
-            </select>
+          <label><span>Mine area label</span>
+            <input id="setup-environment" value={props.config.area} maxLength={100} disabled={props.locked}
+              onChange={event => props.onConfig({ ...props.config, area: event.target.value })} />
           </label>
-
-          <label>
-            <span>Trainee</span>
-            <select defaultValue="worker017">
-              <option value="worker017">Worker 017</option>
-              <option value="team">Six-person response team</option>
-            </select>
+          <p className="field-help">The area name labels the session. All three scenarios use the shared training layout.</p>
+          <label><span>Trainee or team name</span>
+            <input id="setup-people" value={props.config.trainee} maxLength={60} disabled={props.locked}
+              onChange={event => props.onConfig({ ...props.config, trainee: event.target.value })} />
           </label>
-
+          <label><span>Number of participants</span>
+            <input type="number" min={1} max={50} value={props.config.personnel} disabled={props.locked}
+              onChange={event => props.onConfig({ ...props.config, personnel: Math.max(1, Math.min(50, Number(event.target.value) || 1)) })} />
+          </label>
           <div className="setup-divider" />
-
           <div className="section-title">Preview state</div>
           <div className="phase-button-grid">
-            <button className={props.phase === 'idle' ? 'active' : ''} onClick={() => props.onPhase('idle')}>Baseline</button>
-            <button className={props.phase === 'alarm' ? 'active' : ''} onClick={() => props.onPhase('alarm')}>Hazard</button>
-            <button className={props.phase === 'blocked' ? 'active' : ''} onClick={() => props.onPhase('blocked')}>Route loss</button>
-            <button className={props.phase === 'reroute' ? 'active' : ''} onClick={() => props.onPhase('reroute')}>Reroute</button>
+            {([['idle', 'Baseline'], ['alarm', 'Hazard'], ['blocked', 'Route loss'], ['reroute', 'Reroute']] as [DrillPhase, string][]).map(([value, label]) =>
+              <button key={value} className={props.phase === value ? 'active' : ''} onClick={() => props.onPhase(value)}>{label}</button>)}
           </div>
-
           <div className="setup-divider" />
-
+          <div className="section-title" id="setup-assessment" tabIndex={-1}>Exercise controls</div>
           <div className="switch-list">
-            <SystemSwitch label="Auto-advance events" checked={props.autoAdvance} onChange={props.onAutoAdvance} />
+            <SystemSwitch label="Automatic event playback" checked={props.autoAdvance} onChange={props.onAutoAdvance} />
             <SystemSwitch label="Route guidance" checked={props.showRoutes} onChange={props.onShowRoutes} />
             <SystemSwitch label="Scene labels" checked={props.showLabels} onChange={props.onShowLabels} />
             <SystemSwitch label="Viewport grid" checked={props.showGrid} onChange={props.onShowGrid} />
           </div>
-
-          <button className="setup-primary" onClick={props.onStartDrill}>
-            <Icon name="play_arrow" filled /> Load and start drill
+          <p className="field-help">Manual mode lets the instructor introduce each event. Automatic playback advances every three seconds; observations remain manual.</p>
+          <button className="setup-primary" onClick={props.onStartDrill}
+            disabled={!props.config.trainee.trim() || !props.config.area.trim()}>
+            <Icon name="play_arrow" filled /> {props.locked ? 'Return to current drill' : 'Start drill'}
           </button>
         </div>
       </aside>

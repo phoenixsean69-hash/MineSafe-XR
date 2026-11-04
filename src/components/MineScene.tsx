@@ -1,7 +1,10 @@
 import { Canvas } from '@react-three/fiber'
-import { Environment, Line, OrbitControls, Text } from '@react-three/drei'
+import { Suspense, useEffect, useState } from 'react'
+import { Environment, Html, Lightformer, Line, OrbitControls, Text } from '@react-three/drei'
 import * as THREE from 'three'
-import type { DrillPhase, ScenarioKind, ViewStyle } from '../types'
+import type { CameraMode, DrillPhase, ScenarioKind, ViewStyle } from '../types'
+
+const LABEL_FONT = new URL('../assets/DejaVuSans.ttf', import.meta.url).href
 
 type Props = {
   phase: DrillPhase
@@ -9,6 +12,14 @@ type Props = {
   viewStyle?: ViewStyle
   showRoutes?: boolean
   showLabels?: boolean
+  cameraMode?: CameraMode
+  playerPosition?: [number, number, number]
+  playerLabel?: string
+  trail?: [number, number, number][]
+  waypoints?: { id: string; name: string; position: [number, number, number]; blocked: boolean }[]
+  onWaypoint?: (id: string) => void
+  cameraTarget?: [number, number, number]
+  routeSegments?: { id: string; from: [number, number, number]; to: [number, number, number]; alternate: boolean; blocked: boolean }[]
 }
 
 const ROUTE_PRIMARY: [number, number, number][] = [
@@ -64,16 +75,28 @@ function TunnelSection({
   scale,
   viewStyle,
   along = 'x',
+  opening,
 }: {
   position: [number, number, number]
   scale: [number, number, number]
   viewStyle: ViewStyle
   along?: 'x' | 'z'
+  opening?: { side: -1 | 1; center: number; width: number }
 }) {
   const wireframe = viewStyle === 'wireframe'
-  const wallColor = viewStyle === 'rendered' ? '#24282b' : '#1d2124'
-  const floorColor = viewStyle === 'rendered' ? '#3b3f40' : '#292d2f'
+  const wallColor = viewStyle === 'rendered' ? '#535d63' : '#45515a'
+  const floorColor = viewStyle === 'rendered' ? '#50585d' : '#414b53'
   const length = along === 'x' ? scale[0] : scale[2]
+  const halfWidth = (along === 'x' ? scale[2] : scale[0]) / 2
+  const walls: { side: number; start: number; end: number }[] = []
+  for (const side of [-1, 1]) {
+    if (opening?.side === side) {
+      const from = Math.max(-length / 2, opening.center - opening.width / 2)
+      const to = Math.min(length / 2, opening.center + opening.width / 2)
+      if (from > -length / 2) walls.push({ side, start: -length / 2, end: from })
+      if (to < length / 2) walls.push({ side, start: to, end: length / 2 })
+    } else walls.push({ side, start: -length / 2, end: length / 2 })
+  }
 
   const supports = []
   for (let i = -Math.floor(length / 2) + 1; i < Math.floor(length / 2); i += 2.2) {
@@ -87,20 +110,13 @@ function TunnelSection({
         <meshStandardMaterial color={floorColor} roughness={0.98} wireframe={wireframe} />
       </mesh>
 
-      <mesh position={[0, 1.55, -scale[2] / 2]} receiveShadow>
-        <boxGeometry args={[scale[0], 3.2, 0.16]} />
+      {/* Low cutaway walls expose the drill; openings keep the junctions clear. */}
+      {walls.map((wall, index) => <mesh key={index} receiveShadow
+        position={along === 'x' ? [(wall.start + wall.end) / 2, 0.34, wall.side * halfWidth]
+          : [wall.side * halfWidth, 0.34, (wall.start + wall.end) / 2]}>
+        <boxGeometry args={along === 'x' ? [wall.end - wall.start, 0.68, 0.2] : [0.2, 0.68, wall.end - wall.start]} />
         <meshStandardMaterial color={wallColor} roughness={1} wireframe={wireframe} />
-      </mesh>
-
-      <mesh position={[0, 1.55, scale[2] / 2]} receiveShadow>
-        <boxGeometry args={[scale[0], 3.2, 0.16]} />
-        <meshStandardMaterial color={wallColor} roughness={1} wireframe={wireframe} />
-      </mesh>
-
-      <mesh position={[0, 3.12, 0]} receiveShadow>
-        <boxGeometry args={[scale[0], 0.16, scale[2]]} />
-        <meshStandardMaterial color="#262a2d" roughness={1} wireframe={wireframe} />
-      </mesh>
+      </mesh>)}
 
       {supports.map((offset) =>
         along === 'x' ? (
@@ -248,7 +264,7 @@ function Refuge({ position }: { position: [number, number, number] }) {
         <boxGeometry args={[1.35, 0.32, 0.04]} />
         <meshStandardMaterial color="#2f805d" emissive="#1e5c42" emissiveIntensity={0.4} />
       </mesh>
-      <Text position={[0, 1.55, 0.72]} fontSize={0.16} color="#e7f5ed" anchorX="center">
+      <Text font={LABEL_FONT} position={[0, 1.55, 0.72]} fontSize={0.16} color="#e7f5ed" anchorX="center">
         REFUGE 2
       </Text>
     </group>
@@ -277,7 +293,7 @@ function FireHazard({ active, labels }: { active: boolean; labels: boolean }) {
       ))}
 
       {labels && (
-        <Text position={[0, 2.9, 0]} fontSize={0.28} color="#ff9b7b" anchorX="center">
+        <Text font={LABEL_FONT} position={[0, 2.9, 0]} fontSize={0.28} color="#ff9b7b" anchorX="center">
           SIMULATED FIRE
         </Text>
       )}
@@ -301,7 +317,7 @@ function RockfallHazard({ active, labels }: { active: boolean; labels: boolean }
     <group>
       {positions.map((p, index) => <Rock key={index} position={p} scale={0.9 + (index % 3) * 0.22} color="#4a4a46" />)}
       {labels && (
-        <Text position={[2.2, 1.9, 4]} fontSize={0.28} color="#e7a17f" anchorX="center">
+        <Text font={LABEL_FONT} position={[2.2, 1.9, 4]} fontSize={0.28} color="#e7a17f" anchorX="center">
           SIMULATED ROCKFALL
         </Text>
       )}
@@ -325,7 +341,7 @@ function VentilationHazard({ active, labels }: { active: boolean; labels: boolea
       ))}
 
       {labels && (
-        <Text position={[0, 1.25, 0]} fontSize={0.25} color={active ? '#e78b75' : '#9dd2d2'} anchorX="center">
+        <Text font={LABEL_FONT} position={[0, 1.25, 0]} fontSize={0.25} color={active ? '#e78b75' : '#9dd2d2'} anchorX="center">
           {active ? 'FAN 03 FAILED' : 'FAN 03'}
         </Text>
       )}
@@ -358,6 +374,14 @@ function MineWorld({
   viewStyle = 'solid',
   showRoutes = true,
   showLabels = true,
+  cameraMode = 'orbit',
+  playerPosition = [-6.3, 0, 4],
+  playerLabel,
+  trail = [],
+  waypoints = [],
+  onWaypoint,
+  cameraTarget = [0, 0.9, 1],
+  routeSegments,
 }: Props) {
   const incidentActive = phase !== 'idle'
   const routeBlocked = phase === 'blocked' || phase === 'reroute' || phase === 'complete'
@@ -367,13 +391,13 @@ function MineWorld({
   return (
     <>
       <color attach="background" args={[rendered ? '#080a0b' : '#0b0d0e']} />
-      <fog attach="fog" args={[rendered ? '#080a0b' : '#0b0d0e', 11, 34]} />
-      <ambientLight intensity={rendered ? 0.42 : 0.62} />
+      <fog attach="fog" args={[rendered ? '#080a0b' : '#0b0d0e', 20, 48]} />
+      <ambientLight intensity={rendered ? 0.85 : 1.05} />
       <directionalLight position={[4, 9, 6]} intensity={rendered ? 3.0 : 2.0} castShadow />
 
-      <TunnelSection position={[-1.5, 0, 4]} scale={[14, 3.2, 4.0]} viewStyle={viewStyle} along="x" />
-      <TunnelSection position={[0, 0, -0.5]} scale={[4.0, 3.2, 9]} viewStyle={viewStyle} along="z" />
-      <TunnelSection position={[4.2, 0, -5]} scale={[8.5, 3.2, 4.0]} viewStyle={viewStyle} along="x" />
+      <TunnelSection position={[-1.5, 0, 4]} scale={[14, 3.2, 4.0]} viewStyle={viewStyle} along="x" opening={{ side: -1, center: 1.5, width: 4 }} />
+      <TunnelSection position={[0, 0, -0.5]} scale={[4.0, 3.2, 5]} viewStyle={viewStyle} along="z" />
+      <TunnelSection position={[4.2, 0, -5]} scale={[8.5, 3.2, 4.0]} viewStyle={viewStyle} along="x" opening={{ side: 1, center: -4.2, width: 4 }} />
 
       <VentDuct start={[-1.3, 2.55, 3.45]} length={9.8} axis="x" />
       <VentDuct start={[0.65, 2.52, -1]} length={5.6} axis="z" />
@@ -386,7 +410,17 @@ function MineWorld({
         <meshStandardMaterial color="#3b464e" metalness={0.45} roughness={0.5} />
       </mesh>
 
-      <Worker position={[-6.3, 0, 4]} viewStyle={viewStyle} />
+      <Worker position={playerPosition} viewStyle={viewStyle} />
+      {playerLabel && showLabels && <Html position={[playerPosition[0], 2.2, playerPosition[2]]} center><span className="sys-world-label">{playerLabel}</span></Html>}
+      {trail.length > 1 && <Line points={trail.map(p => [p[0], p[1] + 0.3, p[2]])} color="#79b8e8" lineWidth={3} />}
+      {waypoints.map(point => <group key={point.id} position={point.position}>
+        <mesh position={[0, 0.16, 0]} onClick={event => { event.stopPropagation(); onWaypoint?.(point.id) }}>
+          <cylinderGeometry args={[0.28, 0.28, 0.1, 16]} />
+          <meshStandardMaterial color={point.blocked ? '#d66b54' : '#78bada'} emissive={point.blocked ? '#8d392a' : '#1c526e'} emissiveIntensity={0.5} />
+        </mesh>
+        {showLabels && <Html position={[0, 0.65, 0]} center><button className={'sys-world-waypoint ' + (point.blocked ? 'blocked' : '')}
+          onClick={event => { event.stopPropagation(); onWaypoint?.(point.id) }}>{point.name}</button></Html>}
+      </group>)}
       <Loader position={[2.7, 0, 4]} viewStyle={viewStyle} />
       <Refuge position={[5.4, 1.12, -5]} />
 
@@ -395,10 +429,22 @@ function MineWorld({
       <Rock position={[1.6, 0.16, -2.5]} scale={0.48} />
 
       <FireHazard active={scenario === 'fire' && incidentActive} labels={showLabels} />
-      <RockfallHazard active={scenario === 'rockfall' && (phase === 'blocked' || phase === 'reroute' || phase === 'complete')} labels={showLabels} />
+      <RockfallHazard active={scenario === 'rockfall' && incidentActive} labels={showLabels} />
       <VentilationHazard active={scenario === 'ventilation' && incidentActive} labels={showLabels} />
 
-      {showRoutes && (
+      {showRoutes && routeSegments?.filter(segment => !segment.alternate || safeRouteVisible).map(segment => (
+        <group key={segment.id}>
+          <Line points={[segment.from, segment.to].map(point => [point[0], 0.25, point[2]] as [number, number, number])}
+            color={segment.blocked ? '#bc5b4a' : segment.alternate ? '#62c99c' : '#d4b75f'} lineWidth={segment.blocked ? 2 : 3}
+            dashed={segment.blocked} dashScale={0.7} />
+          {segment.blocked && <group position={[(segment.from[0] + segment.to[0]) / 2, 0.75, (segment.from[2] + segment.to[2]) / 2]}>
+            {[Math.PI / 4, -Math.PI / 4].map(angle => <mesh key={angle} rotation={[0, 0, angle]}>
+              <boxGeometry args={[1.6, 0.12, 0.12]} /><meshStandardMaterial color="#d85b49" emissive="#a23628" emissiveIntensity={0.8} />
+            </mesh>)}
+          </group>}
+        </group>
+      ))}
+      {showRoutes && !routeSegments && (
         <>
           <Line
             points={ROUTE_PRIMARY}
@@ -411,14 +457,14 @@ function MineWorld({
         </>
       )}
 
-      {showRoutes && safeRouteVisible && (
+      {showRoutes && !routeSegments && safeRouteVisible && (
         <>
           <Line points={ROUTE_SAFE} color="#62c99c" lineWidth={4} />
           <RouteMarkers route={ROUTE_SAFE} color="#62c99c" />
         </>
       )}
 
-      {routeBlocked && showRoutes && (
+      {routeBlocked && showRoutes && !routeSegments && (
         <group position={[1.65, 0.75, 4]}>
           <mesh rotation={[0, 0, Math.PI / 4]}>
             <boxGeometry args={[2.2, 0.12, 0.12]} />
@@ -429,7 +475,7 @@ function MineWorld({
             <meshStandardMaterial color="#d85b49" emissive="#a23628" emissiveIntensity={0.8} />
           </mesh>
           {showLabels && (
-            <Text position={[0, 1.45, 0]} fontSize={0.25} color="#ef8371" anchorX="center">
+            <Text font={LABEL_FONT} position={[0, 1.45, 0]} fontSize={0.25} color="#ef8371" anchorX="center">
               ROUTE BLOCKED
             </Text>
           )}
@@ -438,26 +484,44 @@ function MineWorld({
 
       <OrbitControls
         makeDefault
-        target={[0, 0.9, 1]}
+        mouseButtons={{ LEFT: cameraMode === 'pan' ? THREE.MOUSE.PAN : cameraMode === 'zoom' ? THREE.MOUSE.DOLLY : THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+        target={cameraTarget}
         minDistance={6.5}
         maxDistance={22}
         maxPolarAngle={Math.PI / 2.03}
       />
 
-      {rendered && <Environment preset="warehouse" />}
+      {rendered && <Environment resolution={64}>
+        <Lightformer intensity={2} position={[0, 8, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[12, 12, 1]} />
+        <Lightformer intensity={1} position={[-8, 4, 0]} rotation={[0, Math.PI / 2, 0]} scale={[8, 5, 1]} />
+      </Environment>}
     </>
   )
 }
 
+function SceneReady({ onReady }: { onReady: (ready: boolean) => void }) {
+  useEffect(() => onReady(true), [onReady])
+  return null
+}
+
 export default function MineScene(props: Props) {
+  const [ready, setReady] = useState(false)
   return (
+    <div className="mine-scene" data-scene-ready={ready}>
+      {!ready && <div className="scene-loading" role="status">Loading training view...</div>}
     <Canvas
       shadows
-      camera={{ position: [-10.5, 7.2, 12.8], fov: 47 }}
+      camera={{ position: [-11, 11.2, 14.6], fov: 47 }}
       dpr={[1, 1.5]}
       gl={{ antialias: true }}
+      fallback={<div className="scene-loading">The 3D view needs a browser with WebGL enabled.</div>}
     >
-      <MineWorld {...props} />
+      <Suspense fallback={null}>
+        <MineWorld {...props} />
+        <SceneReady onReady={setReady} />
+      </Suspense>
     </Canvas>
+    </div>
   )
 }
